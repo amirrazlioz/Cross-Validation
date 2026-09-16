@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross Validation - תהליך ויתרונות</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1050px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #1a365d;
+            margin-bottom: 5px;
+            font-size: 2.2em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+
+        /* בורר מצבים (טאבים ראשיים) */
+        .main-mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .main-tab-btn {
+            padding: 10px 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: 2px solid #cbd5e0;
+            background: #e2e8f0;
+            color: #4a5568;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .main-tab-btn.active {
+            background-color: #3182ce;
+            border-color: #2b6cb0;
+            color: white;
+            box-shadow: 0 4px 10px rgba(49, 130, 206, 0.4);
+        }
+
+        /* מסך האנימציה */
+        .cv-layout {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+            padding: 10px;
+        }
+
+        .main-data-box {
+            background-color: #f6e05e;
+            color: #744210;
+            border: 2px solid #d69e2e;
+            padding: 8px 35px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .arrow-down {
+            width: 0; 
+            height: 0; 
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid #d69e2e;
+            margin: -8px 0;
+        }
+
+        .folds-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 580px;
+        }
+
+        .fold-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .fold-label {
+            font-weight: bold;
+            color: #2b6cb0;
+            width: 60px;
+            text-align: left;
+        }
+
+        .fold-bars-wrapper {
+            display: flex;
+            flex: 1;
+            height: 38px;
+            border: 2px solid #2d3748;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #edf2f7;
+        }
+
+        .fold-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .seg-train { background-color: #e2e8f0; color: #4a5568; flex: 4; }
+        .seg-val { background-color: #3182ce; color: white; flex: 1; }
+
+        .fold-row.active-fold .fold-bars-wrapper {
+            box-shadow: 0 0 12px rgba(49, 130, 206, 0.6);
+            border-color: #3182ce;
+            transform: scale(1.02);
+        }
+
+        .summary-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+            background: #fffaf0;
+            border: 2px dashed #dd6b20;
+            padding: 12px 20px;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 330px;
+        }
+
+        .average-box {
+            background-color: #f6ad55;
+            color: #7b341e;
+            padding: 6px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 1em;
+        }
+
+        .final-measure-text {
+            margin-top: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #7b341e;
+            text-align: center;
+        }
+
+        .explanation-box {
+            margin-top: 15px;
+            background: #ebf8ff;
+            border: 2px solid #90cdf4;
+            color: #2b6cb0;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.02em;
+            min-height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 8px 18px;
+            font-size: 1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-nav { background-color: #4a5568; color: white; }
+        .btn-nav:hover { background-color: #2d3748; }
+        .btn-nav:disabled { background-color: #cbd5e0; cursor: not-allowed; }
+
+        .btn-play { background-color: #3182ce; color: white; }
+        .btn-play:hover { background-color: #2b6cb0; }
+        
+        .btn-reset { background-color: #e2e8f0; color: #4a5568; }
+        .btn-reset:hover { background-color: #cbd5e0; }
+
+        .status-footer {
+            margin-top: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #718096;
+        }
+
+        /* עיצוב מסך היתרונות */
+        .benefits-container {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            padding: 10px 0;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        .benefits-container.active {
+            display: flex;
+        }
+        .benefit-card {
+            background: #f0fff4;
+            border: 2px solid #38a169;
+            border-radius: 10px;
+            padding: 15px 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+        .benefit-icon {
+            font-size: 1.8em;
+        }
+        .benefit-content h3 {
+            margin: 0 0 5px 0;
+            color: #276749;
+            font-size: 1.2em;
+        }
+        .benefit-content p {
+            margin: 0;
+            color: #2f855a;
+            font-size: 1.05em;
+            line-height: 1.5;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Cross Validation (אימות הצלבה)</h1>
+    <div class="subtitle" id="mainSubtitle">הדמיית תהליך החלוקה והאימון המחזורי</div>
+
+    <!-- טאבים מעבר בין אנימציה ליתרונות -->
+    <div class="main-mode-selector">
+        <button id="tabAnim" class="main-tab-btn active" onclick="switchMainTab('anim')">🎬 הצגת האנימציה</button>
+        <button id="tabBenefits" class="main-tab-btn" onclick="switchMainTab('benefits')">💡 מה היתרון בשיטה?</button>
+    </div>
+
+    <!-- מסך 1: האנימציה -->
+    <div id="animationView" class="cv-layout">
+        <div class="main-data-box">Data (הנתונים המלאים)</div>
+        <div class="arrow-down"></div>
+
+        <div class="folds-container" id="foldsContainer"></div>
+
+        <div class="summary-section">
+            <div class="average-box">Average (ממוצע)</div>
+            <div class="final-measure-text">Final Measure of Performance</div>
+        </div>
+
+        <div class="explanation-box" id="explanationBox">
+            לחץ על "שלב הבא" כדי להתחיל את תהליך ה-Cross Validation.
+        </div>
+
+        <div class="controls" id="animControls">
+            <button class="btn btn-reset" onclick="resetAnimation()">🔄 איפוס</button>
+            <button class="btn btn-nav" id="prevBtn" onclick="prevStep()" disabled>▶ שלב קודם</button>
+            <button class="btn btn-nav" id="nextBtn" onclick="nextStep()">שלב הבא ◀</button>
+            <button class="btn btn-play" id="playBtn" onclick="togglePlay()">▶ הפעל אוטומטית</button>
+        </div>
+
+        <div class="status-footer" id="statusFooter">שלב 0 מתוך 6</div>
+    </div>
+
+    <!-- מסך 2: היתרונות -->
+    <div id="benefitsView" class="benefits-container">
+        <div class="benefit-card">
+            <div class="benefit-icon">🎯</div>
+            <div class="benefit-content">
+                <h3>1. ניצול מלא של כל הנתונים (No Data Wasted)</h3>
+                <p>בחלוקה רגילה וקבועה (Train/Test סטנדרטית), חלק מהנתונים "נזרקים" החוצה רק לצורך בדיקה ואינם משתתפים בלמידה. ב-Cross Validation, הודות לסיבובים המחזוריים, <strong>100% מהנתונים משמשים גם לאימון וגם לבדיקה</strong> בזמנים שונים.</p>
+            </div>
+        </div>
+
+        <div class="benefit-card">
+            <div class="benefit-icon">🛡️</div>
+            <div class="benefit-content">
+                <h3>2. מניעת הטיה מקרית (Eliminates Sampling Bias)</h3>
+                <p>אם נשתמש בקבוצת Validation בודדת ומקרית, ייתכן שנפלו בה בטעות דוגמאות קלות או קשות באופן קיצוני, מה שיטעה אותנו לגבי איכות המודל. הממוצע על פני 5 קבוצות שונות (Folds) מעניק <strong>מדד ביצועים אובייקטיבי, אמין ויציב בהרבה</strong>.</p>
+            </div>
+        </div>
+
+        <div class="benefit-card">
+            <div class="benefit-icon">🔍</div>
+            <div class="benefit-content">
+                <h3>3. הערכה אמינה יותר של יכולת ההכללה (Generalization)</h3>
+                <p>כיוון שהמודל נבחן על פני 5 תתי-קבוצות שונות לגמרי שלא ראו מעולם בזמן האימון שלהן באותו סבב, הציון הסופי משקף בצורה המדויקת ביותר כיצד המודל יתפקד מול נתונים חדשים בעולם האמיתי.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let currentStep = 0;
+    let autoPlayInterval = null;
+
+    const explanations = [
+        "מצב התחלתי: כל הנתונים מוכנים לחלוקה ל-5 קבוצות שוות (Folds).",
+        "Fold 1: החלק הראשון משמש כ-Validation (כחול) וארבעת החלקים האחרים משמשים ל-Training.",
+        "Fold 2: החלק השני משמש כ-Validation (כחול) ושאר החלקים ל-Training.",
+        "Fold 3: החלק השלישי משמש כ-Validation (כחול) ושאר החלקים ל-Training.",
+        "Fold 4: החלק הרביעי משמש כ-Validation (כחול) ושאר החלקים ל-Training.",
+        "Fold 5: החלק החמישי והאחרון משמש כ-Validation (כחול) ושאר החלקים ל-Training.",
+        "תוצאה סופית: משקללים את תוצאות כל 5 האיטרציות למדד ביצועים אחיד וממוצע (Average)!"
+    ];
+
+    function switchMainTab(mode) {
+        stopAutoPlay();
+        const tabAnim = document.getElementById('tabAnim');
+        const tabBenefits = document.getElementById('tabBenefits');
+        const animView = document.getElementById('animationView');
+        const benefitsView = document.getElementById('benefitsView');
+        const mainSub = document.getElementById('mainSubtitle');
+
+        if (mode === 'anim') {
+            tabAnim.className = 'main-tab-btn active';
+            tabBenefits.className = 'main-tab-btn';
+            animView.style.display = 'flex';
+            benefitsView.classList.remove('active');
+            mainSub.innerText = "הדמיית תהליך החלוקה והאימון המחזורי";
+        } else {
+            tabBenefits.className = 'main-tab-btn active';
+            tabAnim.className = 'main-tab-btn';
+            animView.style.display = 'none';
+            benefitsView.classList.add('active');
+            mainSub.innerText = "היתרונות המרכזיים של שימוש ב-Cross Validation";
+        }
+    }
+
+    function buildFoldsDOM() {
+        const container = document.getElementById('foldsContainer');
+        container.innerHTML = '';
+
+        for (let i = 1; i <= 5; i++) {
+            const row = document.createElement('div');
+            row.className = 'fold-row';
+            row.id = `fold-row-${i}`;
+
+            const label = document.createElement('div');
+            label.className = 'fold-label';
+            label.innerText = `Fold ${i}`;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'fold-bars-wrapper';
+            wrapper.id = `fold-wrapper-${i}`;
+
+            for (let seg = 1; seg <= 5; seg++) {
+                const segment = document.createElement('div');
+                segment.className = 'fold-segment';
+                
+                if (seg === i) {
+                    segment.className += ' seg-val';
+                    segment.innerText = 'Val';
+                } else {
+                    segment.className += ' seg-train';
+                    segment.innerText = 'Training';
+                }
+                wrapper.appendChild(segment);
+            }
+
+            row.appendChild(label);
+            row.appendChild(wrapper);
+            container.appendChild(row);
+        }
+    }
+
+    function updateView() {
+        for (let i = 1; i <= 5; i++) {
+            const row = document.getElementById(`fold-row-${i}`);
+            row.className = 'fold-row';
+            
+            const wrapper = document.getElementById(`fold-wrapper-${i}`);
+            wrapper.innerHTML = '';
+            
+            for (let seg = 1; seg <= 5; seg++) {
+                const segment = document.createElement('div');
+                segment.className = 'fold-segment';
+                
+                if (seg === i) {
+                    segment.className += ' seg-val';
+                    segment.innerText = 'Val';
+                } else {
+                    segment.className += ' seg-train';
+                    segment.innerText = 'Training';
+                }
+                wrapper.appendChild(segment);
+            }
+
+            if (currentStep === i) {
+                row.classList.add('active-fold');
+            }
+        }
+
+        document.getElementById('explanationBox').innerText = explanations[currentStep];
+        document.getElementById('prevBtn').disabled = (currentStep === 0);
+        document.getElementById('nextBtn').disabled = (currentStep === 6);
+        document.getElementById('statusFooter').innerText = `שלב ${currentStep} מתוך 6`;
+    }
+
+    function nextStep() {
+        if (currentStep < 6) {
+            currentStep++;
+            updateView();
+        } else {
+            stopAutoPlay();
+        }
+    }
+
+    function prevStep() {
+        if (currentStep > 0) {
+            currentStep--;
+            updateView();
+        }
+    }
+
+    function resetAnimation() {
+        stopAutoPlay();
+        currentStep = 0;
+        updateView();
+    }
+
+    function togglePlay() {
+        const playBtn = document.getElementById('playBtn');
+        if (autoPlayInterval) {
+            stopAutoPlay();
+        } else {
+            playBtn.innerText = "⏸ עצור";
+            if (currentStep === 6) {
+                currentStep = 0;
+                updateView();
+            }
+            autoPlayInterval = setInterval(() => {
+                if (currentStep < 6) {
+                    currentStep++;
+                    updateView();
+                } else {
+                    stopAutoPlay();
+                }
+            }, 1500);
+        }
+    }
+
+    function stopAutoPlay() {
+        if (autoPlayInterval) {
+            clearInterval(autoPlayInterval);
+            autoPlayInterval = null;
+            document.getElementById('playBtn').innerText = "▶ הפעל אוטומטית";
+        }
+    }
+
+    buildFoldsDOM();
+    updateView();
+</script>
+
+</body>
+</html>
